@@ -64,11 +64,24 @@ def initialize_firebase():
 
             # Try to use Streamlit secrets first (for deployed version)
             try:
+                # Handle private key formatting for different sources
+                private_key = st.secrets["firebase"]["private_key"]
+
+                # Clean up private key formatting - handle both escaped and literal newlines
+                if "\\n" in private_key:
+                    private_key = private_key.replace('\\n', '\n')
+
+                # Ensure proper PEM formatting
+                if not private_key.startswith('-----BEGIN PRIVATE KEY-----'):
+                    private_key = '-----BEGIN PRIVATE KEY-----\n' + private_key
+                if not private_key.endswith('-----END PRIVATE KEY-----'):
+                    private_key = private_key + '\n-----END PRIVATE KEY-----'
+
                 firebase_key = {
                     "type": st.secrets["firebase"]["type"],
                     "project_id": st.secrets["firebase"]["project_id"],
                     "private_key_id": st.secrets["firebase"]["private_key_id"],
-                    "private_key": st.secrets["firebase"]["private_key"].replace('\\n', '\n'),
+                    "private_key": private_key,
                     "client_email": st.secrets["firebase"]["client_email"],
                     "client_id": st.secrets["firebase"]["client_id"],
                     "auth_uri": st.secrets["firebase"]["auth_uri"],
@@ -79,15 +92,16 @@ def initialize_firebase():
                 }
                 cred = credentials.Certificate(firebase_key)
                 st.success("Using Streamlit secrets for Firebase connection")
-            except (KeyError, FileNotFoundError):
+            except (KeyError, FileNotFoundError, Exception) as e:
                 # Fallback to local file (for local development)
+                st.info(f"Streamlit secrets not available ({str(e)[:100]}...), trying local file...")
                 key_path = '/Users/supriyabansal/Desktop/ansh-kmc-streamlit/firebase-key.json'
                 if not os.path.exists(key_path):
                     st.error(f"Firebase key file not found at: {key_path}")
                     st.error("Please ensure firebase-key.json exists locally or configure Streamlit secrets for deployment")
                     return None
                 cred = credentials.Certificate(key_path)
-                st.success("Using local Firebase key file")
+                st.success("✅ Using local Firebase key file for development")
 
             firebase_admin.initialize_app(cred)
             db = firestore.client()
@@ -630,6 +644,20 @@ def calculate_observations_verification_monitoring(baby_data):
         'total_babies': len(processed_uids)
     }
 
+def clean_emoji_text(text):
+    """Remove emojis from text for better processing"""
+    import re
+    # Remove emoji characters (basic Unicode ranges for emojis)
+    emoji_pattern = re.compile("["
+        u"\U0001F600-\U0001F64F"  # emoticons
+        u"\U0001F300-\U0001F5FF"  # symbols & pictographs
+        u"\U0001F680-\U0001F6FF"  # transport & map symbols
+        u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
+        u"\U00002702-\U000027B0"  # dingbats
+        u"\U000024C2-\U0001F251"
+        "]+", flags=re.UNICODE)
+    return emoji_pattern.sub('', text).strip()
+
 def categorize_discharge_from_collection(record, source):
     """Categorize discharge based on collection source with user's exact rules"""
 
@@ -638,63 +666,62 @@ def categorize_discharge_from_collection(record, source):
         discharge_status = record.get('dischargeStatus', '').lower()
         discharge_type = record.get('dischargeType', '').lower()
 
+        # Critical and sent home: dischargeStatus = critical and dischargeType = home
         if discharge_status == 'critical' and discharge_type == 'home':
             return 'critical_home'
+
+        # Stable and sent home: dischargeStatus = stable and dischargeType = home
         elif discharge_status == 'stable' and discharge_type == 'home':
             return 'stable_home'
-        elif (discharge_status == 'stable' and discharge_type == 'referred') or (discharge_status == 'critical' and discharge_type == 'referred'):
+
+        # Critical and referred: dischargeStatus = critical and dischargeType = referred
+        elif discharge_status == 'critical' and discharge_type == 'referred':
             return 'critical_referred'
+
+        # Died: dischargeType = died
         elif discharge_type == 'died':
             return 'died'
         else:
             return 'other'
 
     elif source == 'babyBackUp':
-        # From babybackup collection, use dischargeStatusString
-        discharge_status_string = record.get('dischargeStatusString', '')
+        # From babybackup collection, use dischargedStatusString
+        discharge_status_string = record.get('dischargedStatusString', '')
         if not discharge_status_string:
             discharge_status_string = ''
 
+        # Clean emoji characters from the string for better matching
+        cleaned_string = clean_emoji_text(discharge_status_string)
         discharge_status_lower = discharge_status_string.lower()
+        cleaned_lower = cleaned_string.lower()
 
-        # Death cases first (most specific)
-        if ('डिस्चार्ज से पहले ही मृत्यु हो गई 👼' in discharge_status_string or
-              'died before discharge' in discharge_status_lower or
-              'death' in discharge_status_lower or
-              'मृत्यु' in discharge_status_string or
-              'dead' in discharge_status_lower):
-            return 'died'
-
-        # Critical and discharged
-        elif ('critical and discharged' in discharge_status_lower or
-              'critical and discharge' in discharge_status_lower):
+        # Critical and sent home: "Critical and discharged"
+        if ('critical and discharged' in discharge_status_lower):
             return 'critical_home'
 
-        # Referred cases
-        elif ('referred out' in discharge_status_lower or
-              'referred' in discharge_status_lower or
-              'refer' in discharge_status_lower):
-            return 'critical_referred'
-
-        # Discharged/stable cases
+        # Stable and sent home: "Discharged according to criteria/stable"
         elif ('discharged according to criteria' in discharge_status_lower or
-              'discharged' in discharge_status_lower or
-              'stable' in discharge_status_lower or
-              'discharge' in discharge_status_lower):
+              'stable' in discharge_status_lower):
             return 'stable_home'
 
-        # If still no match, classify based on any keywords
-        elif ('critical' in discharge_status_lower):
-            return 'critical_referred'  # Default critical cases to referred
+        # Critical and referred: "Referred out/Critical"
+        elif ('referred out' in discharge_status_lower or
+              'critical' in discharge_status_lower):
+            return 'critical_referred'
 
-        # Default for any remaining cases
+        # Died: "डिस्चार्ज से पहले ही मृत्यु हो गई 👼" or "died before discharge"
+        elif ('डिस्चार्ज से पहले ही मृत्यु हो गई' in discharge_status_string or
+              'died before discharge' in discharge_status_lower or
+              'मृत्यु हो गई' in discharge_status_string or
+              'death' in discharge_status_lower):
+            return 'died'
         else:
-            return 'stable_home'  # Default to stable_home instead of other
+            return 'other'
 
     return 'other'
 
 def calculate_discharge_outcomes(baby_data, discharge_data):
-    """Calculate discharge outcomes using user's exact rules for each collection"""
+    """Calculate discharge outcomes using ONLY discharges and babyBackUp collections"""
 
     # Initialize categories
     discharge_categories = {
@@ -729,8 +756,9 @@ def calculate_discharge_outcomes(baby_data, discharge_data):
             'baby_data': discharge
         })
 
-    # Process baby collection data (which contains babyBackUp logic)
-    for baby in baby_data:
+    # Process ONLY babyBackUp collection data (filter by source)
+    babybackup_data = [baby for baby in baby_data if baby.get('source') == 'babyBackUp']
+    for baby in babybackup_data:
         uid = baby.get('UID')
 
         if not uid or uid in processed_uids:
@@ -745,11 +773,11 @@ def calculate_discharge_outcomes(baby_data, discharge_data):
             'UID': uid,
             'hospitalName': baby.get('hospitalName', 'Unknown'),
             'dischargeStatusString': baby.get('dischargeStatusString', 'Unknown'),
-            'source': 'baby collection (babyBackUp logic)',
+            'source': 'babyBackUp collection',
             'discharge_record': False,
             'baby_data': baby
         })
-    
+
     total_discharged = sum(cat['count'] for cat in discharge_categories.values())
     
     return {
@@ -760,6 +788,88 @@ def calculate_discharge_outcomes(baby_data, discharge_data):
         'stable_home_percentage': (discharge_categories['stable_home']['count'] / total_discharged * 100) if total_discharged > 0 else 0,
         'critical_referred_percentage': (discharge_categories['critical_referred']['count'] / total_discharged * 100) if total_discharged > 0 else 0,
         'died_percentage': (discharge_categories['died']['count'] / total_discharged * 100) if total_discharged > 0 else 0
+    }
+
+def calculate_individual_critical_reasons(discharge_data):
+    """Calculate individual critical reasons from discharge collection - parse array-like strings"""
+    import ast
+    import re
+
+    # Track individual critical reasons
+    individual_reasons = {}
+    total_babies_with_reasons = 0
+    processed_uids = set()
+
+    for discharge in discharge_data:
+        uid = discharge.get('UID')
+        if not uid or uid in processed_uids:
+            continue
+
+        critical_reasons_field = discharge.get('criticalReasons', '')
+
+        # Only process entries that have actual critical reasons data
+        if not critical_reasons_field or not str(critical_reasons_field).strip():
+            continue
+
+        processed_uids.add(uid)
+        total_babies_with_reasons += 1
+
+        try:
+            # Parse the string representation of array (e.g., "['GA', 'weightLoss>2%']")
+            critical_reasons_str = str(critical_reasons_field).strip()
+
+            # Handle different formats
+            if critical_reasons_str.startswith('[') and critical_reasons_str.endswith(']'):
+                # Try to parse as Python list literal
+                try:
+                    reasons_list = ast.literal_eval(critical_reasons_str)
+                except:
+                    # Fallback: extract items using regex
+                    reasons_list = re.findall(r"'([^']*)'", critical_reasons_str)
+            else:
+                # Single reason, not in array format
+                reasons_list = [critical_reasons_str]
+
+            # Count each individual reason
+            for reason in reasons_list:
+                reason = str(reason).strip()
+                if reason:
+                    if reason not in individual_reasons:
+                        individual_reasons[reason] = {
+                            'count': 0,
+                            'babies': []
+                        }
+
+                    individual_reasons[reason]['count'] += 1
+                    individual_reasons[reason]['babies'].append({
+                        'UID': uid,
+                        'hospital': discharge.get('hospitalName', 'Unknown'),
+                        'dischargeStatus': discharge.get('dischargeStatus', 'Unknown'),
+                        'full_reasons': critical_reasons_str
+                    })
+
+        except Exception as e:
+            # If parsing fails, treat as single reason
+            reason = str(critical_reasons_field).strip()
+            if reason:
+                if reason not in individual_reasons:
+                    individual_reasons[reason] = {
+                        'count': 0,
+                        'babies': []
+                    }
+
+                individual_reasons[reason]['count'] += 1
+                individual_reasons[reason]['babies'].append({
+                    'UID': uid,
+                    'hospital': discharge.get('hospitalName', 'Unknown'),
+                    'dischargeStatus': discharge.get('dischargeStatus', 'Unknown'),
+                    'full_reasons': critical_reasons_field
+                })
+
+    return {
+        'individual_reasons': individual_reasons,
+        'total_babies_with_reasons': total_babies_with_reasons,
+        'total_unique_reasons': len(individual_reasons)
     }
 
 def calculate_followup_metrics(followup_data, baby_data):
@@ -1871,7 +1981,184 @@ def main():
                 st.dataframe(hospital_skin_summary, use_container_width=True)
         else:
             st.info("No skin contact data found in follow-up 28 records.")
-        
+
+        # Discharge Outcomes Analysis
+        st.subheader("Discharge Outcomes Analysis")
+        st.caption("Based on discharges and babyBackUp collections with updated categorization rules")
+
+        discharge_outcomes = calculate_discharge_outcomes(filtered_data, discharge_data)
+
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Discharged", discharge_outcomes['total_discharged'])
+            st.caption(f"({discharge_outcomes['unique_babies_processed']} unique babies)")
+        with col2:
+            st.metric("Critical & Home", f"{discharge_outcomes['critical_home_percentage']:.1f}%",
+                     f"{discharge_outcomes['categories']['critical_home']['count']} babies")
+        with col3:
+            st.metric("Stable & Home", f"{discharge_outcomes['stable_home_percentage']:.1f}%",
+                     f"{discharge_outcomes['categories']['stable_home']['count']} babies")
+        with col4:
+            st.metric("Deaths", f"{discharge_outcomes['died_percentage']:.1f}%",
+                     f"{discharge_outcomes['categories']['died']['count']} babies")
+
+        # Discharge outcomes pie chart
+        if discharge_outcomes['total_discharged'] > 0:
+            fig = go.Figure(data=[go.Pie(
+                labels=['Critical & Home', 'Stable & Home', 'Critical & Referred', 'Died', 'Other'],
+                values=[
+                    discharge_outcomes['categories']['critical_home']['count'],
+                    discharge_outcomes['categories']['stable_home']['count'],
+                    discharge_outcomes['categories']['critical_referred']['count'],
+                    discharge_outcomes['categories']['died']['count'],
+                    discharge_outcomes['categories']['other']['count']
+                ],
+                marker_colors=[ANSH_COLORS['secondary'], '#10B981', '#F59E0B', '#EF4444', '#9CA3AF']
+            )])
+            fig.update_layout(title="Discharge Outcomes Distribution (Discharges + BabyBackUp Collections)")
+            st.plotly_chart(fig, use_container_width=True)
+
+        # Show detailed breakdown table
+        st.subheader("Detailed Discharge Breakdown")
+        detailed_discharge_data = []
+        category_names = {
+            'critical_home': 'Critical and sent home',
+            'stable_home': 'Stable and sent home',
+            'critical_referred': 'Critical and referred',
+            'died': 'Died',
+            'other': 'Other/Unknown'
+        }
+
+        for category, data in discharge_outcomes['categories'].items():
+            percentage = (data['count'] / discharge_outcomes['total_discharged'] * 100) if discharge_outcomes['total_discharged'] > 0 else 0
+            detailed_discharge_data.append({
+                'Discharge Category': category_names.get(category, category),
+                'Count': data['count'],
+                'Percentage': f"{percentage:.1f}%"
+            })
+
+        discharge_breakdown_df = pd.DataFrame(detailed_discharge_data)
+        st.dataframe(discharge_breakdown_df, use_container_width=True, hide_index=True)
+
+        # Show collection sources breakdown
+        with st.expander("📊 View Data Sources Breakdown"):
+            st.write("**Data Sources Used:**")
+
+            discharge_sources = {}
+            for category, data in discharge_outcomes['categories'].items():
+                for baby_info in data['babies']:
+                    source = baby_info['source']
+                    if source not in discharge_sources:
+                        discharge_sources[source] = 0
+                    discharge_sources[source] += 1
+
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Discharges Collection", discharge_sources.get('discharges collection', 0))
+            with col2:
+                st.metric("BabyBackUp Collection", discharge_sources.get('babyBackUp collection', 0))
+
+            st.write("**Categorization Rules Applied:**")
+            st.markdown("""
+            **From Discharges Collection:**
+            - Critical and sent home: `dischargeStatus = critical AND dischargeType = home`
+            - Stable and sent home: `dischargeStatus = stable AND dischargeType = home`
+            - Critical and referred: `dischargeStatus = critical AND dischargeType = referred`
+            - Died: `dischargeType = died`
+
+            **From BabyBackUp Collection:**
+            - Critical and sent home: `dischargedStatusString = "Critical and discharged"`
+            - Stable and sent home: `dischargedStatusString = "Discharged according to criteria/stable"`
+            - Critical and referred: `dischargedStatusString = "Referred out/Critical"`
+            - Died: `dischargedStatusString = "डिस्चार्ज से पहले ही मृत्यु हो गई 👼" OR "died before discharge"`
+            """)
+
+        # Critical Reasons Analysis
+        st.subheader("Critical Reasons Analysis")
+        st.caption("Individual critical reasons from discharge collection (only babies with critical reasons data)")
+
+        critical_reasons_data = calculate_individual_critical_reasons(discharge_data)
+
+        if critical_reasons_data['total_babies_with_reasons'] > 0:
+            # Overview metrics
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Babies with Critical Reasons", critical_reasons_data['total_babies_with_reasons'])
+            with col2:
+                st.metric("Unique Critical Reasons", critical_reasons_data['total_unique_reasons'])
+            with col3:
+                total_discharges = len(discharge_data)
+                percentage_with_reasons = (critical_reasons_data['total_babies_with_reasons'] / total_discharges * 100) if total_discharges > 0 else 0
+                st.metric("Percentage with Reasons", f"{percentage_with_reasons:.1f}%")
+
+            # Create chart data - show top 10 most common reasons
+            reasons_list = []
+            for reason, data in critical_reasons_data['individual_reasons'].items():
+                reasons_list.append({
+                    'Reason': reason,
+                    'Count': data['count'],
+                    'Percentage': (data['count'] / critical_reasons_data['total_babies_with_reasons'] * 100)
+                })
+
+            # Sort by count and take top 10
+            reasons_list_sorted = sorted(reasons_list, key=lambda x: x['Count'], reverse=True)[:10]
+
+            if reasons_list_sorted:
+                # Create horizontal bar chart
+                df_reasons = pd.DataFrame(reasons_list_sorted)
+
+                fig = px.bar(
+                    df_reasons,
+                    y='Reason',
+                    x='Count',
+                    orientation='h',
+                    title="Top 10 Critical Reasons (Individual Count)",
+                    color='Count',
+                    color_continuous_scale='Blues'
+                )
+                fig.update_layout(
+                    height=500,
+                    xaxis_title="Number of Babies",
+                    yaxis_title="Critical Reason",
+                    yaxis={'categoryorder': 'total ascending'}
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+                # Show detailed table
+                st.subheader("Detailed Critical Reasons Breakdown")
+
+                # Create comprehensive table with all reasons
+                all_reasons_data = []
+                for reason, data in sorted(critical_reasons_data['individual_reasons'].items(), key=lambda x: x[1]['count'], reverse=True):
+                    percentage = (data['count'] / critical_reasons_data['total_babies_with_reasons'] * 100)
+                    all_reasons_data.append({
+                        'Critical Reason': reason,
+                        'Count': data['count'],
+                        'Percentage': f"{percentage:.1f}%"
+                    })
+
+                reasons_df = pd.DataFrame(all_reasons_data)
+                st.dataframe(reasons_df, use_container_width=True, hide_index=True)
+
+                # Show explanation
+                with st.expander("📋 Critical Reasons Explanation"):
+                    st.markdown("""
+                    **Common Critical Reasons:**
+                    - **weightLoss>2%**: Baby lost more than 2% of birth weight
+                    - **GA**: Gestational Age related concerns
+                    - **dangerSigns**: Baby showing danger signs
+                    - **notSingleBaby**: Multiple birth (twins, triplets, etc.)
+                    - **dischargeWeight**: Weight-related concerns at discharge
+                    - **inHospital<1Day**: Baby hospitalized for less than 1 day
+                    - **dischargeTemperature**: Temperature concerns at discharge
+                    - **dischargeRRawake**: Respiratory rate issues when awake
+                    - **badFeeding**: Poor feeding patterns
+
+                    **Note**: Some babies may have multiple critical reasons, so they are counted for each applicable reason.
+                    """)
+        else:
+            st.info("No critical reasons data found in the discharge collection.")
+
 
     with tab3:
         st.header("Mortality Analysis")
