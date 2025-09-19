@@ -1708,7 +1708,7 @@ def main():
                 color_discrete_sequence=[ANSH_COLORS['primary']]
             )
             fig.update_layout(xaxis_title="Hospital", yaxis_title="Number of Babies")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
     
     with tab2:
         st.header("Clinical KPIs")
@@ -1739,7 +1739,7 @@ def main():
                 marker_colors=[ANSH_COLORS['primary'], ANSH_COLORS['secondary'], '#E5E7EB']
             )])
             fig.update_layout(title="Registration Timeliness Distribution")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
         # Hospital Stay Duration Analysis
         st.subheader("Average Hospital Stay Duration by Location")
@@ -1762,7 +1762,7 @@ def main():
                     })
 
                 df_display = pd.DataFrame(location_df)
-                st.dataframe(df_display, use_container_width=True, hide_index=True)
+                st.dataframe(df_display, width='stretch', hide_index=True)
 
                 # Chart showing average stay by location
                 fig = px.bar(
@@ -1776,7 +1776,7 @@ def main():
                     yaxis_title="Days",
                     xaxis_title="Current Location of Baby"
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
         else:
             st.info("No discharged babies found with valid birth and discharge dates.")
 
@@ -1810,7 +1810,7 @@ def main():
                 marker_colors=['#10B981', ANSH_COLORS['secondary'], '#EF4444']
             )])
             fig.update_layout(title="KMC Initiation Timing Distribution")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
         # Detailed breakdown by Inborn/Outborn
         col1, col2 = st.columns(2)
@@ -1850,7 +1850,7 @@ def main():
 
             if location_data:
                 location_df = pd.DataFrame(location_data)
-                st.dataframe(location_df, use_container_width=True, hide_index=True)
+                st.dataframe(location_df, width='stretch', hide_index=True)
 
         # Average KMC Hours by Location
         st.subheader("Average KMC Hours by Location & Hospital")
@@ -1869,7 +1869,7 @@ def main():
                 })
             
             avg_kmc_df = pd.DataFrame(avg_kmc_df_data)
-            st.dataframe(avg_kmc_df, use_container_width=True, hide_index=True)
+            st.dataframe(avg_kmc_df, width='stretch', hide_index=True)
         else:
             st.info("No KMC data found for the selected time period.")
         
@@ -1911,7 +1911,7 @@ def main():
                 })
             
             followup_df = pd.DataFrame(followup_df_data)
-            st.dataframe(followup_df, use_container_width=True, hide_index=True)
+            st.dataframe(followup_df, width='stretch', hide_index=True)
             
             # Follow-up completion chart
             if len(followup_df_data) > 0:
@@ -1925,7 +1925,7 @@ def main():
                 )
                 fig.update_traces(texttemplate='%{text}', textposition='outside')
                 fig.update_layout(yaxis_title="Completion Rate (%)")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
         else:
             st.info("No follow-up data available for the selected criteria.")
         
@@ -1940,7 +1940,7 @@ def main():
             alert_df = alert_df.sort_values('numberSkinContact', ascending=False)
             st.dataframe(
                 alert_df[['UID', 'followUpNumber', 'numberSkinContact', 'hospital']],
-                use_container_width=True,
+                width='stretch',
                 hide_index=True
             )
             st.write(f"**Total alerts: {len(skin_contact_metrics['high_skin_contact_alerts'])} records**")
@@ -1970,7 +1970,7 @@ def main():
                     xaxis_title="Number of Skin Contact",
                     yaxis_title="Count of Babies"
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
                 
                 # Show data by hospital
                 hospital_skin_summary = df_skin.groupby('hospital').agg({
@@ -1978,7 +1978,7 @@ def main():
                 }).round(1)
                 hospital_skin_summary.columns = ['Count', 'Average', 'Min', 'Max']
                 st.subheader("Skin Contact by Hospital")
-                st.dataframe(hospital_skin_summary, use_container_width=True)
+                st.dataframe(hospital_skin_summary, width='stretch')
         else:
             st.info("No skin contact data found in follow-up 28 records.")
 
@@ -2016,7 +2016,7 @@ def main():
                 marker_colors=[ANSH_COLORS['secondary'], '#10B981', '#F59E0B', '#EF4444', '#9CA3AF']
             )])
             fig.update_layout(title="Discharge Outcomes Distribution (Discharges + BabyBackUp Collections)")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
         # Show detailed breakdown table
         st.subheader("Detailed Discharge Breakdown")
@@ -2038,7 +2038,7 @@ def main():
             })
 
         discharge_breakdown_df = pd.DataFrame(detailed_discharge_data)
-        st.dataframe(discharge_breakdown_df, use_container_width=True, hide_index=True)
+        st.dataframe(discharge_breakdown_df, width='stretch', hide_index=True)
 
         # Show collection sources breakdown
         with st.expander("📊 View Data Sources Breakdown"):
@@ -2122,7 +2122,7 @@ def main():
                     yaxis_title="Critical Reason",
                     yaxis={'categoryorder': 'total ascending'}
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
 
                 # Show detailed table
                 st.subheader("Detailed Critical Reasons Breakdown")
@@ -2138,7 +2138,7 @@ def main():
                     })
 
                 reasons_df = pd.DataFrame(all_reasons_data)
-                st.dataframe(reasons_df, use_container_width=True, hide_index=True)
+                st.dataframe(reasons_df, width='stretch', hide_index=True)
 
                 # Show explanation
                 with st.expander("📋 Critical Reasons Explanation"):
@@ -2224,7 +2224,7 @@ def main():
                     yaxis2=dict(title="Mortality Rate (%)", side="right", overlaying="y"),
                     barmode='group'
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
         
         with mort_tab2:
             col1, col2 = st.columns(2)
@@ -2251,7 +2251,7 @@ def main():
                         barmode='group',
                         yaxis_title="Number of Babies"
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width='stretch')
                     
                     # Show rates
                     st.metric("Inborn Mortality Rate", f"{inborn_rate:.2f}%", 
@@ -2286,7 +2286,7 @@ def main():
                             })
                     
                     discharge_cat_df = pd.DataFrame(discharge_category_data)
-                    st.dataframe(discharge_cat_df, use_container_width=True, hide_index=True)
+                    st.dataframe(discharge_cat_df, width='stretch', hide_index=True)
                     
                     # Show pie chart of discharge categories (only for dead babies)
                     categories_with_deaths = [(cat, data) for cat, data in discharge_outcomes['categories'].items() if data['count'] > 0]
@@ -2297,7 +2297,7 @@ def main():
                             marker_colors=[ANSH_COLORS['secondary'], '#10B981', '#F59E0B', '#EF4444', '#9CA3AF']
                         )])
                         fig.update_layout(title="Dead Babies Distribution by Discharge Category")
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width='stretch')
                     else:
                         st.info("No dead babies found in the current dataset.")
             
@@ -2351,7 +2351,7 @@ def main():
                     })
                 
                 location_df = pd.DataFrame(location_df_data)
-                st.dataframe(location_df, use_container_width=True, hide_index=True)
+                st.dataframe(location_df, width='stretch', hide_index=True)
                 
                 # Visualization
                 locations = [item['Location'] for item in location_df_data]
@@ -2369,7 +2369,7 @@ def main():
                     yaxis_title="Mortality Rate (%)",
                     showlegend=False
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
         
         with mort_tab4:
             st.subheader("KMC Stability Analysis")
@@ -2405,7 +2405,7 @@ def main():
                         barmode='group',
                         yaxis_title="Number of Babies"
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width='stretch')
         
         with mort_tab5:
             st.subheader("Detailed Mortality Data")
@@ -2489,7 +2489,7 @@ def main():
                     })
                 
                 detailed_df = pd.DataFrame(detailed_data)
-                st.dataframe(detailed_df, use_container_width=True)
+                st.dataframe(detailed_df, width='stretch')
                 
                 # Show summary by category
                 category_summary = detailed_df['Discharge Category'].value_counts()
@@ -2555,7 +2555,7 @@ def main():
             
             # Display colored table
             df = pd.DataFrame(table_data)
-            st.dataframe(df, use_container_width=True)
+            st.dataframe(df, width='stretch')
             
             # Add expandable details for each hospital-location combination
             with st.expander(f"📋 View detailed data for {date_obj.strftime('%B %d, %Y')}"):
@@ -2599,7 +2599,7 @@ def main():
                                     
                                     if location_babies:
                                         baby_df = pd.DataFrame(location_babies)
-                                        st.dataframe(baby_df, use_container_width=True, hide_index=True)
+                                        st.dataframe(baby_df, width='stretch', hide_index=True)
                                 
                                 st.divider()
             
@@ -2660,14 +2660,14 @@ def main():
                     marker_colors=['#10B981', '#EF4444', '#F59E0B', '#9CA3AF']
                 )])
                 fig.update_layout(title="KMC Verification Status Distribution")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
 
                 # Show problematic entries
                 problematic = [entry for entry in kmc_verification['detailed_data'] if entry['status'] in ['incorrect', 'unable_to_verify']]
                 if problematic:
                     st.subheader(f"Problematic KMC Entries ({len(problematic)})")
                     problem_df = pd.DataFrame(problematic)
-                    st.dataframe(problem_df, use_container_width=True)
+                    st.dataframe(problem_df, width='stretch')
 
                 # Show detailed table with observation data and mnecomment
                 entries_with_comments = [entry for entry in kmc_verification['detailed_data'] if entry.get('mnecomment') and entry['mnecomment'].strip()]
@@ -2696,7 +2696,7 @@ def main():
 
                     if detailed_rows:
                         detailed_df = pd.DataFrame(detailed_rows)
-                        st.dataframe(detailed_df, use_container_width=True, hide_index=True)
+                        st.dataframe(detailed_df, width='stretch', hide_index=True)
 
             else:
                 st.info("No KMC verification data found")
@@ -2727,14 +2727,14 @@ def main():
                     marker_colors=['#10B981', '#EF4444']
                 )])
                 fig.update_layout(title="Observations Verification Status Distribution")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
 
                 # Show incorrect entries
                 incorrect_entries = [entry for entry in obs_verification['detailed_data'] if entry['status'] == 'incorrect']
                 if incorrect_entries:
                     st.subheader(f"Incorrect Observation Entries ({len(incorrect_entries)})")
                     incorrect_df = pd.DataFrame(incorrect_entries)
-                    st.dataframe(incorrect_df, use_container_width=True)
+                    st.dataframe(incorrect_df, width='stretch')
                 else:
                     st.success("✅ No incorrect observation entries found!")
 
@@ -2765,7 +2765,7 @@ def main():
 
                     if detailed_obs_rows:
                         detailed_obs_df = pd.DataFrame(detailed_obs_rows)
-                        st.dataframe(detailed_obs_df, use_container_width=True, hide_index=True)
+                        st.dataframe(detailed_obs_df, width='stretch', hide_index=True)
 
             else:
                 st.info("No observation verification data found")
@@ -2863,7 +2863,7 @@ def main():
                             st.metric("Avg Total KMC", f"{avg_total_kmc:.1f}h")
 
                     # Display the data table
-                    st.dataframe(df, use_container_width=True, hide_index=True)
+                    st.dataframe(df, width='stretch', hide_index=True)
 
                     # Download CSV
                     csv = df.to_csv(index=False)
