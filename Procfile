@@ -1,0 +1,1 @@
+web: streamlit run kmc_dashboard.py --server.port $PORT --server.headless true --server.enableCORS false --server.enableXsrfProtection false
