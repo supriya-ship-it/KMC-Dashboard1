@@ -173,7 +173,7 @@ def load_collection_with_retry(db, collection_name, max_retries=5, batch_size=10
                 st.error(f"All attempts failed for {collection_name}: {str(e)[:200]}")
                 return []
 
-@st.cache_resource(ttl=300)
+@st.cache_data(ttl=300)
 def load_firebase_data():
     """Load data from Firebase collections"""
     db = initialize_firebase()
